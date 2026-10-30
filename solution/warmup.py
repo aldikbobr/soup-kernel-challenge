@@ -19,7 +19,8 @@ _STARTED = []
 def _compile_all():
     from .fused_loss import BLOCK_V, soup_ce_rows_kernel
     from .nf4 import BYTES_PER_PROGRAM, soup_nf4_dequant_kernel
-    from .rmsnorm import _warps, soup_rmsnorm_bwd_kernel, soup_rmsnorm_fwd_kernel
+    from .rmsnorm import (_warps, soup_add_rmsnorm_bwd_kernel, soup_add_rmsnorm_fwd_kernel,
+                          soup_rmsnorm_bwd_kernel, soup_rmsnorm_fwd_kernel)
     from .swiglu import BLOCK, example_swiglu_bwd_kernel, example_swiglu_fwd_kernel
 
     dev = "cuda"
@@ -42,6 +43,10 @@ def _compile_all():
                                    BLOCK=block, ROUND_TO_INPUT=False, num_warps=_warps(block))
     soup_rmsnorm_bwd_kernel.warmup(f32, f32, f32, f32, f32, hidden, hidden, hidden, hidden,
                                    grid=grid, BLOCK=block, num_warps=_warps(block))
+    soup_add_rmsnorm_fwd_kernel.warmup(f32, f16, f32, f32, f32, f32, hidden, 1e-6, grid=grid,
+                                       BLOCK=block, num_warps=_warps(block))
+    soup_add_rmsnorm_bwd_kernel.warmup(f32, f32, f32, f32, f32, f32, f16, hidden, grid=grid,
+                                       BLOCK=block, num_warps=_warps(block))
     example_swiglu_fwd_kernel.warmup(f16, f16, f16, 8960 * 16, grid=grid, BLOCK=BLOCK)
     example_swiglu_bwd_kernel.warmup(f16, f16, f16, f16, f16, 8960 * 16, grid=grid, BLOCK=BLOCK)
     torch.cuda.synchronize()

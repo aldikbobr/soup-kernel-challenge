@@ -222,3 +222,30 @@ def test_fp16_embedding_is_lossless():
     fresh = Qwen2ForCausalLM(cfg).float()             # not fp16-exact: left alone
     fresh.requires_grad_(False)
     assert not shrink_tied_embedding(fresh, devices=("cpu",))
+
+
+@pytest.mark.parametrize("delta_dtype", [torch.float16, torch.float32])
+def test_add_rmsnorm_matches_add_then_norm(delta_dtype):
+    from solution.rmsnorm import add_rms_norm
+
+    torch.manual_seed(3)
+    r = (torch.randn(2, 33, 1536, device=DEVICE) * 2).requires_grad_(True)
+    a = torch.randn(2, 33, 1536, device=DEVICE, dtype=delta_dtype).requires_grad_(True)
+    w = torch.rand(1536, device=DEVICE) + 0.5
+    ds = torch.randn(2, 33, 1536, device=DEVICE)
+    dy = torch.randn(2, 33, 1536, device=DEVICE)
+
+    s_ref = r + a
+    y_ref = reference_rmsnorm(s_ref, w, 1e-6)
+    torch.autograd.backward([s_ref, y_ref], [ds, dy])
+    dr_ref, da_ref = r.grad.clone(), a.grad.clone()
+    r.grad = a.grad = None
+
+    s, y = add_rms_norm(r, a, w, 1e-6)
+    torch.autograd.backward([s, y], [ds, dy])
+    assert s.dtype == torch.float32 and y.dtype == torch.float32 and a.grad.dtype == delta_dtype
+    torch.testing.assert_close(s, s_ref, rtol=0, atol=0)
+    torch.testing.assert_close(y, y_ref, rtol=1e-5, atol=1e-5)
+    torch.testing.assert_close(r.grad, dr_ref, rtol=1e-4, atol=1e-4)
+    tol = 1e-4 if delta_dtype == torch.float32 else 2e-3
+    torch.testing.assert_close(a.grad.float(), da_ref.float(), rtol=tol, atol=tol)
