@@ -199,3 +199,26 @@ def test_unpadded_step_matches_padded():
     torch.testing.assert_close(logits[real], ref_logits[real], rtol=1e-4, atol=1e-4)
     for name in ref_grads:
         torch.testing.assert_close(grads[name], ref_grads[name], rtol=1e-4, atol=1e-5)
+
+
+def test_fp16_embedding_is_lossless():
+    from transformers import Qwen2Config, Qwen2ForCausalLM
+
+    from solution.embed16 import shrink_tied_embedding
+
+    torch.manual_seed(0)
+    cfg = Qwen2Config(vocab_size=97, hidden_size=64, intermediate_size=96, num_hidden_layers=1,
+                      num_attention_heads=4, num_key_value_heads=2, tie_word_embeddings=True)
+    model = Qwen2ForCausalLM(cfg).half().float()      # fp16 checkpoint upcast to fp32, as in Soup
+    model.requires_grad_(False)
+    ids = torch.randint(0, 97, (2, 9))
+    ref = model(input_ids=ids).logits
+    assert shrink_tied_embedding(model, devices=("cpu",))
+    assert model.get_input_embeddings().weight.dtype == torch.float16
+    assert model.get_output_embeddings().weight is model.get_input_embeddings().weight
+    out = model(input_ids=ids).logits
+    assert out.dtype == torch.float32
+    torch.testing.assert_close(out, ref, rtol=0, atol=0)
+    fresh = Qwen2ForCausalLM(cfg).float()             # not fp16-exact: left alone
+    fresh.requires_grad_(False)
+    assert not shrink_tied_embedding(fresh, devices=("cpu",))

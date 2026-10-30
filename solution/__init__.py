@@ -11,10 +11,12 @@ Our kernels (all in this folder):
 - nf4.py         `soup_nf4_dequant_kernel`: one-pass NF4 + double-quant dequantization for the
                  4-bit linears, forward and backward;
 - rmsnorm.py     `soup_rmsnorm_fwd_kernel`, `soup_rmsnorm_bwd_kernel`: fp32 RMSNorm in one pass.
-And one change without a kernel: unpad.py runs the batch without its pad tokens.
+Two changes without a kernel: unpad.py runs the batch without its pad tokens, and embed16.py
+keeps the frozen tied embedding in fp16 (lossless: it was loaded in fp16).
 The template's SwiGLU example stays on as well (swiglu.py); it does not count as ours.
 """
 
+from .embed16 import patch_soup_setup
 from .head_patch import patch_qwen2_causal_lm, patch_sft_trainer
 from .nf4 import patch_bnb_matmul_4bit
 from .rmsnorm import patch_qwen2_rmsnorm
@@ -29,3 +31,4 @@ def apply():
     patch_qwen2_causal_lm()
     patch_sft_trainer()
     patch_unpad()              # pad tokens out of every token-wise op (no kernel of its own)
+    patch_soup_setup()         # frozen tied embedding back to its lossless fp16 (no kernel)
