@@ -2,18 +2,18 @@
 
 TRL pads every batch of 4 rows on the right to its longest row. The rows average about 220
 tokens with a long tail, so a good part of every (4, T) batch is padding, and every linear,
-norm, MLP and LoRA of the 28 layers spends time and activation memory on it.
+norm, MLP, LoRA and attention of the 28 layers spends time and activation memory on it.
 
 In a training step with a right-padded attention mask, `Qwen2Model.forward` here gathers the
-real tokens into one packed (1, N, H) sequence and runs every token-wise op on N rows instead of
-4 * T. Only attention needs the rows apart: q, k and v are scattered back to the padded
-(4, heads, T, D) layout for one causal SDPA call and the output is gathered again. With right
-padding and a causal mask a real token only ever attends to real tokens of its own row, so its
-output is the base's. Positions, RoPE and every op stay those of the base; the last hidden state
-goes back to the padded (4, T, H) layout for the LM head.
+real tokens into one packed (1, N, H) sequence (row after row, in order) and runs every
+token-wise op on N rows instead of 4 * T. Attention runs once per row on that row's own slice of
+q, k and v, causal, so a token attends to exactly the tokens it attends to in the base (with
+right padding and a causal mask a real token never sees a pad). Positions, RoPE and every op are
+those of the base; the last hidden state goes back to the padded (4, T, H) layout for the head.
 
 LoRA dropout draws its random mask for the padded (4, T, H) shape and keeps the rows of the real
-tokens, so the RNG stream and every dropout mask element are exactly the base's.
+tokens, so the RNG stream and every dropout mask element are exactly the base's; backward keeps
+the mask as bool (1 byte per element), as PyTorch's own dropout does.
 """
 
 import threading
@@ -35,6 +35,21 @@ def _right_padded(mask):
     return bool(torch.equal(mask, steps < lengths))
 
 
+class _PackedDropout(torch.autograd.Function):
+    """x * mask / (1 - p) with the given bool mask; saves only the mask."""
+
+    @staticmethod
+    def forward(ctx, x, mask, scale):
+        ctx.save_for_backward(mask)
+        ctx.scale = scale
+        return x * (mask.to(x.dtype) * scale)
+
+    @staticmethod
+    def backward(ctx, grad):
+        (mask,) = ctx.saved_tensors
+        return grad * (mask.to(grad.dtype) * ctx.scale), None, None
+
+
 def patch_lora_dropout():
     """nn.Dropout on a packed (1, N, H) tensor: same mask elements as on the padded tensor."""
     cls = torch.nn.Dropout
@@ -49,20 +64,12 @@ def patch_lora_dropout():
                 or x.shape[0] != 1 or x.shape[1] != info.n:
             return original(self, x)
         ones = torch.ones(info.batch, info.seq, x.shape[-1], device=x.device, dtype=x.dtype)
-        keep = torch.nn.functional.dropout(ones, self.p, True)          # mask / (1 - p)
-        keep = keep.reshape(-1, x.shape[-1]).index_select(0, info.index)
-        return x * keep.view_as(x)
+        keep = torch.nn.functional.dropout(ones, self.p, True)          # 0 or 1 / (1 - p)
+        mask = keep.reshape(-1, x.shape[-1]).index_select(0, info.index) != 0
+        return _PackedDropout.apply(x, mask.view(x.shape), 1.0 / (1.0 - self.p))
 
     forward._soup_patched = True
     cls.forward = forward
-
-
-def _to_padded(t, info):
-    """(1, heads, N, D) -> (batch, heads, seq, D), zeros at the pad positions."""
-    rows = t[0].transpose(0, 1)                                          # (N, heads, D)
-    full = rows.new_zeros(info.batch * info.seq, rows.shape[1], rows.shape[2])
-    full = full.index_copy(0, info.index, rows)
-    return full.view(info.batch, info.seq, rows.shape[1], rows.shape[2]).transpose(1, 2)
 
 
 def patch_qwen2_attention():
@@ -87,14 +94,16 @@ def patch_qwen2_attention():
         value = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         cos, sin = position_embeddings
         query, key = modeling_qwen2.apply_rotary_pos_emb(query, key, cos, sin)
-        query, key, value = (_to_padded(t, info) for t in (query, key, value))
-        key = modeling_qwen2.repeat_kv(key, self.num_key_value_groups)
-        value = modeling_qwen2.repeat_kv(value, self.num_key_value_groups)
         dropout = self.attention_dropout if self.training else 0.0
-        out = torch.nn.functional.scaled_dot_product_attention(
-            query, key, value, dropout_p=dropout, is_causal=True, scale=self.scaling)
-        out = out.transpose(1, 2).reshape(info.batch * info.seq, -1)
-        out = out.index_select(0, info.index).unsqueeze(0).contiguous()
+        outs = []
+        for start, end in info.segments:                                   # one row at a time
+            k = modeling_qwen2.repeat_kv(key[:, :, start:end], self.num_key_value_groups)
+            v = modeling_qwen2.repeat_kv(value[:, :, start:end], self.num_key_value_groups)
+            outs.append(torch.nn.functional.scaled_dot_product_attention(
+                query[:, :, start:end], k, v, dropout_p=dropout, is_causal=True,
+                scale=self.scaling))
+        out = outs[0] if len(outs) == 1 else torch.cat(outs, dim=2)        # (1, heads, N, D)
+        out = out.transpose(1, 2).reshape(1, info.n, -1).contiguous()
         return self.o_proj(out), None
 
     forward._soup_patched = True
@@ -133,12 +142,18 @@ def patch_qwen2_model():
         batch, seq = input_ids.shape
         index = mask.reshape(-1).nonzero().squeeze(1)
         n = index.numel()
+        lengths = mask.sum(dim=1).tolist()
+        segments, start = [], 0
+        for length in lengths:
+            if length:
+                segments.append((start, start + length))
+            start += length
         ids = input_ids.reshape(-1).index_select(0, index).unsqueeze(0)            # (1, N)
         positions = torch.arange(seq, device=input_ids.device).expand(batch, seq)
         positions = positions.reshape(-1).index_select(0, index).unsqueeze(0)      # (1, N)
         hidden = self.embed_tokens(ids)
         position_embeddings = self.rotary_emb(hidden, positions)
-        _PACK.info = SimpleNamespace(index=index, batch=batch, seq=seq, n=n)
+        _PACK.info = SimpleNamespace(index=index, batch=batch, seq=seq, n=n, segments=segments)
         try:
             for layer in self.layers[: self.config.num_hidden_layers]:
                 hidden = layer(hidden, attention_mask=None, position_embeddings=position_embeddings,
