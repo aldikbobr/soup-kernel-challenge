@@ -1,7 +1,7 @@
 # Handoff: Soup Kernel Challenge (Decentrathon 6.0, track 1 "AI Engineering by Soup")
 
 Talk to the user in Russian. The user is not a GPU programmer; they handle accounts, Kaggle and
-submission, you do the engineering. Delete this file (or move it out) before the final submission.
+submission, you do the engineering. Delete this file and ЧТО_СДЕЛАТЬ.md before the final submission.
 
 ## Task (full spec: the starter kit README in git history, commit c7c2fcd, and the organizers' doc)
 Make the fixed `soup train` QLoRA run (Qwen2.5-1.5B-Instruct NF4, LoRA r=16 alpha=32 dropout 0.05
@@ -32,7 +32,7 @@ Done and tested on CPU only (no GPU in the original sandbox):
 - `README.md`: draft, placeholders `<...>` to fill with Kaggle numbers.
 
 ## Next steps
-1. Push to the team repo (ask the user for its URL; `git remote add origin <url>; git push -u origin main`).
+1. Code lives at https://github.com/aldikbobr/soup-kernel-challenge (origin). If the platform gives a team repo, push there too. User-facing steps: ЧТО_СДЕЛАТЬ.md.
 2. Kaggle: import `templates/kaggle_notebook.ipynb`, GPU T4 x2, internet on, REPO_URL = team repo,
    Run All (~15 min). Read `runs/result.json`, `runs/checks.json`. Never yet run on a real T4:
    expect first-run fixes. Use `python harness/run_task.py --only solution --out runs_try --profile`
