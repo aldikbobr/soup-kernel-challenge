@@ -249,3 +249,42 @@ def test_add_rmsnorm_matches_add_then_norm(delta_dtype):
     torch.testing.assert_close(r.grad, dr_ref, rtol=1e-4, atol=1e-4)
     tol = 1e-4 if delta_dtype == torch.float32 else 2e-3
     torch.testing.assert_close(a.grad.float(), da_ref.float(), rtol=tol, atol=tol)
+
+
+def _linear4bit(n_in, n_out):
+    import bitsandbytes as bnb
+
+    layer = bnb.nn.Linear4bit(n_in, n_out, bias=False, compute_dtype=torch.float16,
+                              quant_type="nf4", compress_statistics=True)
+    layer.weight = bnb.nn.Params4bit(torch.randn(n_out, n_in) * 0.05, requires_grad=False,
+                                     quant_type="nf4", compress_statistics=True)
+    return layer.to(DEVICE)
+
+
+def test_mlp_fp16_activations_match():
+    from transformers import Qwen2Config
+    from transformers.models.qwen2 import modeling_qwen2
+
+    from solution.mlp16 import patch_qwen2_mlp_fp16
+
+    torch.manual_seed(4)
+    cfg = Qwen2Config(hidden_size=64, intermediate_size=128)
+    mlp = modeling_qwen2.Qwen2MLP(cfg)
+    mlp.gate_proj, mlp.up_proj, mlp.down_proj = _linear4bit(64, 128), _linear4bit(64, 128), \
+        _linear4bit(128, 64)
+    x = torch.randn(2, 9, 64, device=DEVICE).requires_grad_(True)
+    grad = torch.randn(2, 9, 64, device=DEVICE)
+
+    original = modeling_qwen2.Qwen2MLP.forward
+    ref = original(mlp, x)                            # whatever forward is installed now
+    ref.backward(grad)
+    ref_dx, x.grad = x.grad.clone(), None
+    patch_qwen2_mlp_fp16()
+    try:
+        out = modeling_qwen2.Qwen2MLP.forward(mlp, x)
+        out.backward(grad)
+    finally:
+        modeling_qwen2.Qwen2MLP.forward = original
+    assert out.dtype == torch.float16 and ref.dtype == torch.float32
+    torch.testing.assert_close(out.float(), ref, rtol=2e-3, atol=2e-3)
+    torch.testing.assert_close(x.grad, ref_dx, rtol=2e-3, atol=2e-3)

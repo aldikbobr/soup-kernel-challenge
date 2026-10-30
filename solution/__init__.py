@@ -13,12 +13,14 @@ Our kernels (all in this folder):
 - rmsnorm.py     `soup_rmsnorm_fwd_kernel`, `soup_rmsnorm_bwd_kernel`: fp32 RMSNorm in one pass;
                  `soup_add_rmsnorm_fwd_kernel`, `soup_add_rmsnorm_bwd_kernel`: the residual add
                  after attention fused into the post-attention RMSNorm.
-Two changes without a kernel: unpad.py runs the batch without its pad tokens, and embed16.py
-keeps the frozen tied embedding in fp16 (lossless: it was loaded in fp16).
+Changes without a kernel of ours: unpad.py runs the batch without its pad tokens, embed16.py
+keeps the frozen tied embedding in fp16 and mlp16.py keeps the MLP's gate/up in fp16 (both
+lossless: those values are fp16 numbers to begin with).
 The template's SwiGLU example stays on as well (swiglu.py); it does not count as ours.
 """
 
 from .embed16 import patch_soup_setup
+from .mlp16 import patch_qwen2_mlp_fp16
 from .head_patch import patch_qwen2_causal_lm, patch_sft_trainer
 from .nf4 import patch_bnb_matmul_4bit
 from .rmsnorm import patch_qwen2_decoder_layer, patch_qwen2_rmsnorm
@@ -29,6 +31,7 @@ from .warmup import start as start_warmup
 
 def apply():
     patch_qwen2_mlp()          # the template's example (kept: it saves activation memory)
+    patch_qwen2_mlp_fp16()     # ... on fp16 gate/up: half the MLP activation memory (no kernel)
     patch_qwen2_rmsnorm()
     patch_qwen2_decoder_layer()
     patch_bnb_matmul_4bit()
