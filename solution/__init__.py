@@ -22,6 +22,7 @@ from .nf4 import patch_bnb_matmul_4bit
 from .rmsnorm import patch_qwen2_rmsnorm
 from .swiglu import patch_qwen2_mlp
 from .unpad import patch_unpad
+from .warmup import start as start_warmup
 
 
 def apply():
@@ -32,3 +33,4 @@ def apply():
     patch_sft_trainer()
     patch_unpad()              # pad tokens out of every token-wise op (no kernel of its own)
     patch_soup_setup()         # frozen tied embedding back to its lossless fp16 (no kernel)
+    start_warmup()             # compile the kernels while Soup loads the model
