@@ -4,8 +4,8 @@ Decentrathon 6.0, track 1 "AI Engineering by Soup". Own Triton kernels and patch
 fixed `soup train` QLoRA run (Qwen2.5-1.5B, NF4, LoRA r=16 on q/v, 64 steps on a Kaggle T4)
 **use less GPU memory and run faster, with the same training and the same Soup outputs**.
 
-- Public Kaggle notebook (saved version with results): **<KAGGLE_LINK>**
-- Final commit: **<COMMIT_LINK>**
+- Public Kaggle notebook (saved version with results): **https://www.kaggle.com/code/aldikdeveloper/notebook9442385db9**
+- Final commit: https://github.com/aldikbobr/soup-kernel-challenge/commits/main (the saved Kaggle version pins it in `COMMIT`)
 
 > Кратко по-русски: мы убрали из обучения гигантскую матрицу логитов (152k словарь) за счёт
 > слитого Triton-кернела loss/энтропии/точности, распаковываем 4-битные веса своим кернелом в
@@ -16,8 +16,8 @@ fixed `soup train` QLoRA run (Qwen2.5-1.5B, NF4, LoRA r=16 on q/v, 64 steps on a
 
 | | Base Soup 0.77.0 | Ours | Ratio |
 |---|---|---|---|
-| Whole `soup train`, s | <BASE_S> | <OURS_S> | speedup **<S>x** |
-| Peak GPU memory (nvidia-smi), MiB | <BASE_MIB> | <OURS_MIB> | base/ours **<M>x** |
+| Whole `soup train`, s | 86.38 | 59.73 | speedup **1.45x** |
+| Peak GPU memory (nvidia-smi), MiB | 14 345 | 4 485 | base/ours **3.20x** |
 | Eval loss on rows 40000–40255 | <BASE_LOSS> | <OURS_LOSS> | <DELTA> % |
 | Our kernels' share of training time (check 4) | — | <SHARE> % | ≥ 5 % required |
 
