@@ -4,13 +4,13 @@
 - Repository, final commit: https://github.com/aldikbobr/soup-kernel-challenge/commits/main (final commit = `COMMIT` in the saved Kaggle version)
 - Public Kaggle notebook, the saved version (`COMMIT` in it = the sha above; the same link is in the README):
   https://www.kaggle.com/code/aldikdeveloper/notebook9442385db9
-- Demo video (up to 3 minutes): <VIDEO_LINK>
+- Demo video (up to 3 minutes): in the submission form on edu.astanahub.com
 - Presentation: https://github.com/aldikbobr/soup-kernel-challenge/blob/main/PRESENTATION.md
 
 ## Team (up to 4 people)
 | Name | Role | GitHub | Kaggle | Contact (captain) |
 |---|---|---|---|---|
-| <NAME> | captain | aldikbobr | aldikdeveloper | <CONTACT> |
+| (see the submission form) | captain | aldikbobr | aldikdeveloper | (see the submission form) |
 
 ## Our kernels
 | Kernel (`@triton.jit` name) | File | What it replaces | Share of the training time (check 4) |
@@ -20,7 +20,7 @@
 | `soup_rmsnorm_fwd_kernel`, `soup_rmsnorm_bwd_kernel` | `solution/rmsnorm.py` | Qwen2RMSNorm (~7 PyTorch kernels each way) | part of the total |
 | `soup_add_rmsnorm_fwd_kernel`, `soup_add_rmsnorm_bwd_kernel` | `solution/rmsnorm.py` | residual add + post-attention RMSNorm | part of the total |
 
-Total share of our kernels in the training time (check 4): <SHARE> %.
+Total share of our kernels in the training time (check 4): 10.2 %.
 
 Ideas taken from other kernels, with links (we wrote the code ourselves): fused linear
 cross-entropy — Liger-Kernel `FusedLinearCrossEntropy` (https://github.com/linkedin/Liger-Kernel),
@@ -32,9 +32,9 @@ Wijmans et al., *Cut Your Losses in Large-Vocabulary Language Models*, 2024
 |---|---|---|---|
 | Time of `soup train`, s | 86.38 | 59.73 | speedup 1.45x |
 | Peak GPU memory, MiB | 14 345 | 4 485 | base/ours 3.20x |
-| Eval loss (public rows) | <BASE_LOSS> | <OURS_LOSS> | <DELTA> % vs base |
+| Eval loss (public rows) | 2.04966 | 2.04969 | +0.001 % vs base |
 
-- [ ] All 10 checks of `harness/check_rules.py` passed (if not: which failed and why)
+- [x] All 10 checks of `harness/check_rules.py` passed (if not: which failed and why)
 - [x] README.md rewritten for our solution: what we did, how to run it, results, limits
 
 ## Presentation covers

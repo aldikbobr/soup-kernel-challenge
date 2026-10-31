@@ -19,8 +19,8 @@ Decentrathon 6.0, трек 1 «AI Engineering by Soup». Репозиторий:
 |---|---|---|---|
 | Время `soup train` | 86,4 с | 59,7 с | **в 1,45 раза быстрее** |
 | Пик памяти GPU | 14 345 МиБ | 4 485 МиБ | **в 3,2 раза меньше** |
-| Eval loss | <BASE_LOSS> | <OURS_LOSS> | <DELTA> % |
-| Проверки `check_rules.py` | — | <CHECKS> | |
+| Eval loss | 2.04966 | 2.04969 | +0.001 % |
+| Проверки `check_rules.py` | — | все 10 PASS | |
 
 ---
 
@@ -69,7 +69,7 @@ Decentrathon 6.0, трек 1 «AI Engineering by Soup». Репозиторий:
 
 - Каждый кернел против PyTorch (вперёд и назад); NF4 — бит в бит против bitsandbytes.
 - 79 регрессионных тестов Soup проходят с нашими патчами.
-- 10 проверок жюри (`harness/check_rules.py`) на Kaggle T4: <CHECKS>.
+- 10 проверок жюри (`harness/check_rules.py`) на Kaggle T4: все 10 PASS.
 
 ---
 

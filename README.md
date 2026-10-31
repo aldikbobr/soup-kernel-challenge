@@ -18,10 +18,10 @@ fixed `soup train` QLoRA run (Qwen2.5-1.5B, NF4, LoRA r=16 on q/v, 64 steps on a
 |---|---|---|---|
 | Whole `soup train`, s | 86.38 | 59.73 | speedup **1.45x** |
 | Peak GPU memory (nvidia-smi), MiB | 14 345 | 4 485 | base/ours **3.20x** |
-| Eval loss on rows 40000–40255 | <BASE_LOSS> | <OURS_LOSS> | <DELTA> % |
-| Our kernels' share of training time (check 4) | — | <SHARE> % | ≥ 5 % required |
+| Eval loss on rows 40000–40255 | 2.04966 | 2.04969 | +0.001 % |
+| Our kernels' share of training time (check 4) | — | 10.2 % | ≥ 5 % required |
 
-All 10 checks of `harness/check_rules.py`: <CHECKS>. Full output: `runs/result.json`,
+All 10 checks of `harness/check_rules.py`: **all PASS** (Kaggle T4, `runs/checks.json`). Full output: `runs/result.json`,
 `runs/checks.json` in the notebook above.
 
 ## What we did and why
@@ -111,7 +111,7 @@ Without a GPU the kernel tests run in Triton's CPU interpreter:
 
 ## Limits and what did not work
 
-<LIMITS>
+- Measured on one Kaggle T4 run (1.446x speedup, 3.198x less peak memory, eval loss +0.001 %); timings vary by a few percent between runs.
 
 - The kernels are written for this run's shapes; anything else (another model, a trainable norm or
   embedding, left padding, gradient checkpointing, Liger, packing) falls back to the original code
